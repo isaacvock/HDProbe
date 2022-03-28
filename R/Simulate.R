@@ -13,6 +13,7 @@
 #' @param r_sd Numeric; read counts drawn from lognormal(r_mean, r_sd)
 #' @param sig_T Numeric; standard deviation of logit(p) variances on log scale
 #' @param phi Numeric; read counts for each sample drawn from negative binomial distribution with size = phi
+#' @importFrom magrittr %>%
 #'
 #' @return List with 2 componenets, one of which is a dataframe that can be passed to HDProbe
 #' @export
@@ -41,7 +42,7 @@ sim_muts <- function(npos, nreps = 3,
 
   avg_lps <- rep(avg_lps, times = 2) + effs
 
-  var_sds <- sqrt(10^(stats::rnorm(npos*nreps*2, mean = het_m*log10(rep(cov_means, each = nreps)), sd = sig_T)) )
+  var_sds <- sqrt(10^(stats::rnorm(npos*nreps*2, mean = het_m*log10(rep(cov_means, each = nreps)) + het_b, sd = sig_T)) )
 
   ## Individual rate for each position and each replicate
   lps <- stats::rnorm(npos*nreps*2, mean = rep(avg_lps, each = nreps), sd = var_sds)
@@ -79,7 +80,8 @@ sim_muts <- function(npos, nreps = 3,
 
   sim_list <- list(avg_truth = avg_truth,
                    rep_truth = rep_truth,
-                   mut_df = mut_df)
+                   mut_df = mut_df,
+                   var_sds = var_sds)
 
   return(sim_list)
 

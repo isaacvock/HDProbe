@@ -7,7 +7,8 @@
 #' @param SHAPE Logical; if TRUE, then data is treated as SHAPE data rather than DMS-seq data
 #' @param totcut Numeric; read count cutoff to be considered for analysis
 #' @param rate_cut Numeric; 1/(max mutation rate) allowed; used for SNP filtering
-#'
+#' @importFrom magrittr %>%
+
 #' @return a dataframe that can be passed to HDProbe
 #' @export
 maketidy <- function(wt_muts, ko_muts, nreps, target = FALSE, SHAPE = FALSE,
