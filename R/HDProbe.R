@@ -156,6 +156,14 @@ HDProbe <- function(Muts_df, nreps, homosked = FALSE,
     ### Function to assess replicate variability trend
     nbin <- max(c(round((nsf)/1000), 10))
 
+    Avg_df <- Filter_df %>% dplyr::group_by(E_ID, P_ID) %>%
+      dplyr::summarise(tot_var = stats::var(logit_phat),
+                phat_var = mean(phat_var),
+                ntrials = mean(ntrials),
+                lphat_mu = mean(logit_phat)) %>% dplyr::ungroup() %>%
+      dplyr::mutate(bin_ID = as.numeric(Hmisc::cut2(ntrials, g = nbin))) %>%
+      dplyr::mutate(var_rep = tot_var - phat_var)
+
     Filter_df <- Filter_df %>% dplyr::group_by(E_ID, P_ID) %>%
       dplyr::summarise(tot_var = stats::var(logit_phat),
                 phat_var = mean(phat_var),
@@ -174,26 +182,53 @@ HDProbe <- function(Muts_df, nreps, homosked = FALSE,
 
     ## Regress avg_reads vs. avg_sd
     lm_list <- vector("list", length = 2)
+    int_vect <- rep(0, times = 2)
+    slope_vect <- int_vect
+
     lm_var <- lm_list
 
     for(i in 1:2){
       heterosked_lm <- stats::lm(avg_var_rep ~ avg_reads, data = Filter_df[Filter_df$E_ID == i,] )
       h_int <- summary(heterosked_lm)$coefficients[1,1]
       h_slope <- summary(heterosked_lm)$coefficients[2,1]
-      lm_list[[i]] <- c(h_int, h_slope)
+      #lm_list[[i]] <- c(h_int, h_slope)
+
+      int_vect[i] <- h_int
+      slope_vect[i] <- h_slope
 
       lm_var[[i]] <- stats::var(stats::residuals(heterosked_lm))
     }
 
     rm(Filter_df)
 
-    ## Trends if Beta(2, 102) prior used
-    ## m = -0.43; b = 0.276
-    ## m = -0.622; b =  1.326
+    delta_est <- function(n){
+      trials <- 10000
 
-    ## Trends if no prior used
-    ## m = -0.4677; b = 0.5079
-    ## m = -0.741; b = 1.909
+      vars <- rep(0, times = trials)
+      for(i in 1:trials){
+        vars[i] <- var(rnorm(n, mean = 3, sd = 1))
+      }
+
+      return(var(log10(vars)))
+    }
+
+    estimate_var <- delta_est(nreps)
+
+    # Determine variance of variance
+      # Maybe just need to delta estimate log10(tot_var) and log10(phat_var)
+    Avg_df <- Avg_df %>% dplyr::ungroup() %>% dplyr::rowwise() %>%
+      dplyr::mutate(var_exp =slope_vect[E_ID]*log10(ntrials) + int_vect[E_ID],
+                    ltot_var = log10(tot_var) + (2*(tot_var^4))/((tot_var^2)*log(10)*(nreps - 1))) %>%
+      dplyr::mutate(var_sdiff = ((ltot_var - ( (2/((ntrials - 1)*log(10)*log(10))) + var_exp ) )^2) - estimate_var )
+
+
+    Avg_df2 <- Avg_df %>% dplyr::group_by(E_ID) %>%
+      dplyr::summarise(sig_T2 = mean(var_sdiff)) # Variance about the trend
+
+
+    sig_T2 <- Avg_df2$sig_T2[order(Avg_df2$E_ID)]
+
+    rm(Avg_df2)
 
   }
 
@@ -214,15 +249,38 @@ HDProbe <- function(Muts_df, nreps, homosked = FALSE,
   Muts_df <- Muts_df %>% dplyr::group_by(P_ID, E_ID) %>%
     dplyr::summarise(Avg_lp = stats::weighted.mean(pracma::logit(MLE), w = ntrials), # Average logit(estimate)
               Avg_lp_u = stats::weighted.mean(pracma::logit(MLE_u), w = ntrials),
+              Var_lp = stats::var(pracma::logit(MLE))*(nreps - 1)/nreps,
               avg_reads = mean(ntrials),
               ntrials = sum(ntrials),
-              nmuts = sum(nmuts)) %>%
-    dplyr::group_by(P_ID, E_ID) %>%
-    dplyr::mutate(rep_var = (10^(lm_list[[E_ID]][2]*log10(avg_reads) + lm_list[[E_ID]][1])),#/(nreps + 1),
-           lvar_est = HDProbe::var_calc(nmuts + alpha_p, ntrials - nmuts + beta_p))
+              nmuts = sum(nmuts)) #%>%
+    # dplyr::group_by(P_ID, E_ID) %>%
+    # dplyr::mutate(rep_var = (10^(lm_list[[E_ID]][2]*log10(avg_reads) + lm_list[[E_ID]][1])),#/(nreps + 1),
+    #        lvar_est = HDProbe::var_calc(nmuts + alpha_p, ntrials - nmuts + beta_p))
 
 
-  lden <- sqrt( (((nreps - 1)*(Muts_df$rep_var[Muts_df$E_ID == 1] + Muts_df$lvar_est[Muts_df$E_ID == 1]))  + ((nreps-1)*(Muts_df$rep_var[Muts_df$E_ID == 2]  + Muts_df$lvar_est[Muts_df$E_ID == 2]) ))/(2*nreps - 2) )
+  lvar_est <- HDProbe::var_calc(Muts_df$nmuts + alpha_p, Muts_df$ntrials - Muts_df$nmuts + beta_p)
+  sig_o2 <- (10^(slope_vect[Muts_df$E_ID]*log10(Muts_df$avg_reads) + int_vect[Muts_df$E_ID] )) + lvar_est
+
+
+  # Estimate variance of variance on natural scale with delta approximation
+  sig_Ts <- (log(10)^2)*(10^(2*sig_o2))*sig_T2[Muts_df$E_ID] - (((log(10)^4)*(10^(2*sig_o2))*(sig_T2[Muts_df$E_ID]^2))/4)
+
+
+  par2 <- -(8 + (2*(sig_o2^2)/sig_Ts))
+  cubic_soln <- purrr::map(.x = par2, .f = function(x) RConics::cubic(c(1, x, 20, -16)))
+  nu_o <- purrr::map_dbl(.x = cubic_soln, .f = function(x) max(Re(x[Im(x) == 0]) ))
+
+
+
+  Muts_df$rep_var <- (nu_o*sig_o2 + nreps*Muts_df$Var_lp)/(nu_o + nreps - 2)
+
+
+
+  lden <- sqrt( (((nreps - 1)*(Muts_df$rep_var[Muts_df$E_ID == 1]))  + ((nreps-1)*(Muts_df$rep_var[Muts_df$E_ID == 2])))/(2*nreps - 2) )
+
+
+
+  #lden <- sqrt( (((nreps - 1)*(Muts_df$rep_var[Muts_df$E_ID == 1] + Muts_df$lvar_est[Muts_df$E_ID == 1]))  + ((nreps-1)*(Muts_df$rep_var[Muts_df$E_ID == 2]  + Muts_df$lvar_est[Muts_df$E_ID == 2]) ))/(2*nreps - 2) )
 
 
   Testmut <- Muts_df %>% dplyr::ungroup() %>% dplyr::group_by(P_ID) %>%
@@ -239,7 +297,13 @@ HDProbe <- function(Muts_df, nreps, homosked = FALSE,
 
   Results <- list(Diffmut = Testmut,
                   Mut_est = Muts_df,
-                  lm_fit = lm_list)
+                  lm_fit = list(slopes = slope_vect,
+                                ints = int_vect),
+                  hyperps = list(sig_o2 = sig_o2,
+                                 nu_o = nu_o,
+                                 lvar_est = lvar_est,
+                                 sig_T2 = sig_T2),
+                  Avg_df = Avg_df)
 
   return(Results)
 

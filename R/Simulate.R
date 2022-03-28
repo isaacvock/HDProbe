@@ -42,10 +42,12 @@ sim_muts <- function(npos, nreps = 3,
 
   avg_lps <- rep(avg_lps, times = 2) + effs
 
-  var_sds <- sqrt(10^(stats::rnorm(npos*nreps*2, mean = het_m*log10(rep(cov_means, each = nreps)) + het_b, sd = sig_T)) )
+
+  mean_vars <- het_m*log10(cov_means) + het_b
+  var_sds <- sqrt(10^(stats::rnorm(npos*2, mean = mean_vars, sd = sig_T)) )
 
   ## Individual rate for each position and each replicate
-  lps <- stats::rnorm(npos*nreps*2, mean = rep(avg_lps, each = nreps), sd = var_sds)
+  lps <- stats::rnorm(npos*nreps*2, mean = rep(avg_lps, each = nreps), sd = rep(var_sds, each = nreps))
 
 
 
@@ -75,13 +77,15 @@ sim_muts <- function(npos, nreps = 3,
   rep_truth <- tibble::tibble(logit_p = lps,
                               P_ID = mut_df$P_ID,
                               E_ID = mut_df$E_ID,
-                              R_ID = mut_df$R_ID)
+                              R_ID = mut_df$R_ID,
+                              Reads = reads)
 
 
   sim_list <- list(avg_truth = avg_truth,
                    rep_truth = rep_truth,
                    mut_df = mut_df,
-                   var_sds = var_sds)
+                   var_sds = var_sds,
+                   mean_vars = mean_vars)
 
   return(sim_list)
 
