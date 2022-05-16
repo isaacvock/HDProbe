@@ -196,14 +196,26 @@ VarianceTrend <- function(Filter_df, Homosked = FALSE){
 #' @export
 TrendVariance <- function(Avg_df, estimate_var,
                           slope_vect, int_vect, nreps){
+
+  # Avg_df <- Avg_df %>% dplyr::ungroup() %>% dplyr::rowwise() %>%
+  #   dplyr::mutate(var_exp =slope_vect[E_ID]*log10(ntrials) + int_vect[E_ID],
+  #                 ltot_var = log10(tot_var) + (2*(tot_var^4))/((tot_var^2)*log(10)*(nreps - 1))) %>%
+  #   #dplyr::mutate(var_sdiff = ((ltot_var - ( (2/((ntrials - 1)*log(10)*log(10))) + var_exp ) )^2) - estimate_var )
+  #   dplyr::mutate(var_sdiff = ((ltot_var - var_exp)^2))
+
+  min_vr <- min(Avg_df$var_rep[Avg_df$var_rep > 0])
+
+  Avg_df <- Avg_df %>%
+    dplyr::mutate(var_rep = ifelse(var_rep < 0, min_vr, var_rep))
+
+
   Avg_df <- Avg_df %>% dplyr::ungroup() %>% dplyr::rowwise() %>%
-    dplyr::mutate(var_exp =slope_vect[E_ID]*log10(ntrials) + int_vect[E_ID],
-                  ltot_var = log10(tot_var) + (2*(tot_var^4))/((tot_var^2)*log(10)*(nreps - 1))) %>%
-    dplyr::mutate(var_sdiff = ((ltot_var - ( (2/((ntrials - 1)*log(10)*log(10))) + var_exp ) )^2) - estimate_var )
+    dplyr::mutate(var_exp = slope_vect[E_ID]*log10(ntrials) + int_vect[E_ID],
+                  var_sdiff = log10(var_rep) - var_exp )
 
 
   Avg_df2 <- Avg_df %>% dplyr::group_by(E_ID) %>%
-    dplyr::summarise(sig_T2 = mean(var_sdiff)) # Variance about the trend
+    dplyr::summarise(sig_T2 = var(var_sdiff) - estimate_var) # Variance about the trend
 
 
   sig_T2 <- Avg_df2$sig_T2[order(Avg_df2$E_ID)]
@@ -260,7 +272,7 @@ AvgAndReg <- function(Muts_df, bg_pval, bg_rate, alpha_p, beta_p,
   # Posterior total variance estimate
   Muts_df$rep_var <- (nu_o*sig_o2 + nreps*Muts_df$Var_lp)/(nu_o + nreps - 2)
 
-  Reg_list <- list(Muts_df, nu_o)
+  Reg_list <- list(Muts_df, nu_o, sig_Ts, sig_o2)
 
   return(Reg_list)
 
@@ -421,6 +433,8 @@ HDProbe <- function(Muts_df, nreps, homosked = FALSE,
 
   Muts_df <- Reg_list[[1]]
   nu_o <- Reg_list[[2]]
+  sig_Ts <- Reg_list[[3]]
+  sig_o2 <- Reg_list[[4]]
 
   rm(Reg_list)
 
@@ -440,6 +454,9 @@ HDProbe <- function(Muts_df, nreps, homosked = FALSE,
                   lm_fit = list(slopes = slope_vect,
                                 ints = int_vect),
                   nu_o = nu_o,
+                  sig_Ts = sig_Ts,
+                  sig_T2 = sig_T2,
+                  sig_o2 = sig_o2,
                   Avg_df = Avg_df)
 
   return(Results)
