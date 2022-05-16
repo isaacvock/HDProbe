@@ -114,8 +114,8 @@ HDProbe <- function(Muts_df, nreps, homosked = FALSE,
     lm_list <- vector("list", length = 2)
 
 
-    lm_list[[1]] <- c(log10(0.2), 0)
-    lm_list[[2]] <- c(log10(0.2), 0)
+    lm_list[[1]] <- c(log(0.2), 0)
+    lm_list[[2]] <- c(log(0.2), 0)
 
   }else if(homosked){
     Filter_df$P_ID <- rep(1:nsf, each = nreps*2)
@@ -132,7 +132,7 @@ HDProbe <- function(Muts_df, nreps, homosked = FALSE,
     Filter_df <- Filter_df %>% dplyr::group_by(E_ID) %>%
       dplyr::summarise(avg_var_rep = mean(var_rep),
                 RV_var = stats::var(var_rep)) %>%
-      dplyr::mutate(avg_var_rep = log10(avg_var_rep))
+      dplyr::mutate(avg_var_rep = log(avg_var_rep))
 
 
     ## Regress avg_reads vs. avg_sd
@@ -172,12 +172,12 @@ HDProbe <- function(Muts_df, nreps, homosked = FALSE,
       dplyr::mutate(var_rep = tot_var - phat_var)
 
     Filter_df <- Filter_df %>% dplyr::group_by(E_ID, bin_ID) %>%
-      dplyr::summarise(avg_var_rep = mean(var_rep), avg_reads = log10(mean(ntrials))) %>%
+      dplyr::summarise(avg_var_rep = mean(var_rep), avg_reads = log(mean(ntrials))) %>%
       dplyr::filter(avg_var_rep > 0)
 
     Filter_df <- Filter_df %>% dplyr::filter(avg_var_rep > 0)
 
-    Filter_df <- Filter_df %>% dplyr::mutate(avg_var_rep = log10(avg_var_rep))
+    Filter_df <- Filter_df %>% dplyr::mutate(avg_var_rep = log(avg_var_rep))
 
 
     ## Regress avg_reads vs. avg_sd
@@ -201,24 +201,14 @@ HDProbe <- function(Muts_df, nreps, homosked = FALSE,
 
     rm(Filter_df)
 
-    delta_est <- function(n){
-      trials <- 10000
 
-      vars <- rep(0, times = trials)
-      for(i in 1:trials){
-        vars[i] <- var(rnorm(n, mean = 3, sd = 1))
-      }
-
-      return(var(log10(vars)))
-    }
-
-    estimate_var <- delta_est(nreps)
+    estimate_var <- pracma::psi(1,(nreps-1)/2)
 
     # Determine variance of variance
-      # Maybe just need to delta estimate log10(tot_var) and log10(phat_var)
+      # Maybe just need to delta estimate log(tot_var) and log(phat_var)
     Avg_df <- Avg_df %>% dplyr::ungroup() %>% dplyr::rowwise() %>%
-      dplyr::mutate(var_exp =slope_vect[E_ID]*log10(ntrials) + int_vect[E_ID],
-                    ltot_var = log10(tot_var) + (2*(tot_var^4))/((tot_var^2)*log(10)*(nreps - 1))) %>%
+      dplyr::mutate(var_exp =slope_vect[E_ID]*log(ntrials) + int_vect[E_ID],
+                    ltot_var = log(tot_var) + (2*(tot_var^4))/((tot_var^2)*log(10)*(nreps - 1))) %>%
       dplyr::mutate(var_sdiff = ((ltot_var - ( (2/((ntrials - 1)*log(10)*log(10))) + var_exp ) )^2) - estimate_var )
 
 
@@ -254,12 +244,12 @@ HDProbe <- function(Muts_df, nreps, homosked = FALSE,
               ntrials = sum(ntrials),
               nmuts = sum(nmuts)) #%>%
     # dplyr::group_by(P_ID, E_ID) %>%
-    # dplyr::mutate(rep_var = (10^(lm_list[[E_ID]][2]*log10(avg_reads) + lm_list[[E_ID]][1])),#/(nreps + 1),
+    # dplyr::mutate(rep_var = (10^(lm_list[[E_ID]][2]*log(avg_reads) + lm_list[[E_ID]][1])),#/(nreps + 1),
     #        lvar_est = HDProbe::var_calc(nmuts + alpha_p, ntrials - nmuts + beta_p))
 
 
   lvar_est <- HDProbe::var_calc(Muts_df$nmuts + alpha_p, Muts_df$ntrials - Muts_df$nmuts + beta_p)
-  sig_o2 <- (10^(slope_vect[Muts_df$E_ID]*log10(Muts_df$avg_reads) + int_vect[Muts_df$E_ID] )) + lvar_est
+  sig_o2 <- (10^(slope_vect[Muts_df$E_ID]*log(Muts_df$avg_reads) + int_vect[Muts_df$E_ID] )) + lvar_est
 
 
   # Estimate variance of variance on natural scale with delta approximation
