@@ -211,6 +211,88 @@ TrendVariance <- function(Avg_df, estimate_var,
   Var_list <- list(Avg_df, sig_T2)
 }
 
+#' Average mutation rate estimates and regularize variance estiamte
+#'
+#' @param Muts_df a dataframe
+#' @param bg_pval Numeric; p-value cutoff for calling a nt's mutation rate as being no greater than the background error rate
+#' @param bg_rate Numeric; background mutation rate assumed
+#' @param alpha_p Numeric; shape1 of the beta prior used for mutation rate estimation
+#' @param beta_p Numeric; shape2 of the beta prior used for mutation rate estimation
+#' @param slope_vect Vector of variance trend slopes
+#' @param int_vect Vector of variance trend intercepts
+#' @param nreps Number of replicates
+#' @param sig_T2 Variance about variance trend
+#' @importFrom magrittr %>%
+#' @return dataframe
+#' @export
+AvgAndReg <- function(Muts_df, bg_pval, bg_rate, alpha_p, beta_p,
+                     slope_vect, int_vect, nreps, sig_T2){
+
+  Muts_df <- Muts_df %>%
+    dplyr::mutate(MLE = ifelse(stats::pbinom(nmuts, ntrials, prob = bg_rate, lower.tail = FALSE) < bg_pval, MLE, bg_rate))
+
+
+  ## Going to just use the trend as an exact replicate variability estimate for now
+
+  Muts_df <- Muts_df %>% dplyr::group_by(P_ID, E_ID) %>%
+    dplyr::summarise(Avg_lp = stats::weighted.mean(pracma::logit(MLE), w = ntrials), # Average logit(estimate)
+                     Avg_lp_u = stats::weighted.mean(pracma::logit(MLE_u), w = ntrials),
+                     Var_lp = stats::var(pracma::logit(MLE))*(nreps - 1)/nreps, # Total variance of logit(estimate)
+                     avg_reads = mean(ntrials),
+                     ntrials = sum(ntrials),
+                     nmuts = sum(nmuts))
+
+  # Estimate variance using Bayesian posterior
+  lvar_est <- HDProbe::var_calc(Muts_df$nmuts + alpha_p, Muts_df$ntrials - Muts_df$nmuts + beta_p)
+
+  # Total variance trend
+  sig_o2 <- (10^(slope_vect[Muts_df$E_ID]*log10(Muts_df$avg_reads) + int_vect[Muts_df$E_ID] )) + lvar_est
+
+
+  # Estimate variance of variance on natural scale with delta approximation
+  sig_Ts <- (log(10)^2)*(10^(2*sig_o2))*sig_T2[Muts_df$E_ID] - (((log(10)^4)*(10^(2*sig_o2))*(sig_T2[Muts_df$E_ID]^2))/4)
+
+
+  # Prior degrees of freedom of scaled inverse chi-squared distribution (see BDA3)
+  nu_o <- mean((2*(sig_o2^2)/sig_Ts) + 4)
+
+
+  # Posterior total variance estimate
+  Muts_df$rep_var <- (nu_o*sig_o2 + nreps*Muts_df$Var_lp)/(nu_o + nreps - 2)
+
+  Reg_list <- list(Muts_df, nu_o)
+
+  return(Reg_list)
+
+}
+
+#' Test for differential mutation rates
+#'
+#' @param Muts_df a dataframe
+#' @param lden Denominator of test statistic
+#' @param nreps Number of replicates
+#' @param nu_o Prior degrees of freedom
+#' @importFrom magrittr %>%
+#' @return dataframe
+#' @export
+DiffMutTest <- function(Muts_df, lden, nreps, nu_o){
+  Testmut <- Muts_df %>% dplyr::ungroup() %>% dplyr::group_by(P_ID) %>%
+    dplyr::summarise(l_num = Avg_lp[E_ID == 2] - Avg_lp[E_ID == 1],
+                     #l_den = sqrt(sum(lvar_est + rep_var) ), # nreps + 1 to convert to min MSE variance estimate
+                     reads = sum(ntrials))
+
+  Testmut$lden <- lden
+
+  Testmut <- Testmut %>% dplyr::mutate(lz = l_num/(lden*sqrt(2/nreps)),
+                                       lpval = 2*stats::pt(-abs(lz), df = 2*nreps - 2 + 2*nu_o),
+                                       #lpval = 2*stats::pnorm(-abs(lz)),
+                                       lpadj = stats::p.adjust(lpval, method = "BH"))
+
+  return(Testmut)
+
+}
+
+
 #' Perform differential mutation analysis
 #'
 #' @param  Muts_df A dataframe in the form required by HDProbe
@@ -333,43 +415,14 @@ HDProbe <- function(Muts_df, nreps, homosked = FALSE,
 
 
 
-  ### Average over replicates
+  # Average over replicates and regularize variance
+  Reg_list <- AvgAndReg(Muts_df, bg_pval, bg_rate, alpha_p, beta_p,
+                       slope_vect, int_vect, nreps, sig_T2)
 
-  ## I just realized that if I want to use hierarchical modeling I can
-  ## use rep_var trend + est_var as mean to shrink towards
-  ## Just have to be smart about how strongly I shrink estimate
+  Muts_df <- Reg_list[[1]]
+  nu_o <- Reg_list[[2]]
 
-  Muts_df <- Muts_df %>%
-    dplyr::mutate(MLE = ifelse(stats::pbinom(nmuts, ntrials, prob = bg_rate, lower.tail = FALSE) < bg_pval, MLE, bg_rate))
-
-
-  ## Going to just use the trend as an exact replicate variability estimate for now
-
-  Muts_df <- Muts_df %>% dplyr::group_by(P_ID, E_ID) %>%
-    dplyr::summarise(Avg_lp = stats::weighted.mean(pracma::logit(MLE), w = ntrials), # Average logit(estimate)
-              Avg_lp_u = stats::weighted.mean(pracma::logit(MLE_u), w = ntrials),
-              Var_lp = stats::var(pracma::logit(MLE))*(nreps - 1)/nreps, # Total variance of logit(estimate)
-              avg_reads = mean(ntrials),
-              ntrials = sum(ntrials),
-              nmuts = sum(nmuts))
-
-  # Estimate variance using Bayesian posterior
-  lvar_est <- HDProbe::var_calc(Muts_df$nmuts + alpha_p, Muts_df$ntrials - Muts_df$nmuts + beta_p)
-
-  # Total variance trend
-  sig_o2 <- (10^(slope_vect[Muts_df$E_ID]*log10(Muts_df$avg_reads) + int_vect[Muts_df$E_ID] )) + lvar_est
-
-
-  # Estimate variance of variance on natural scale with delta approximation
-  sig_Ts <- (log(10)^2)*(10^(2*sig_o2))*sig_T2[Muts_df$E_ID] - (((log(10)^4)*(10^(2*sig_o2))*(sig_T2[Muts_df$E_ID]^2))/4)
-
-
-  # Prior degrees of freedom of scaled inverse chi-squared distribution (see BDA3)
-  nu_o <- mean((2*(sig_o2^2)/sig_Ts) + 4)
-
-
-  # Posterior total variance estimate
-  Muts_df$rep_var <- (nu_o*sig_o2 + nreps*Muts_df$Var_lp)/(nu_o + nreps - 2)
+  rm(Reg_list)
 
 
   # Denominator of test statistic
@@ -379,29 +432,14 @@ HDProbe <- function(Muts_df, nreps, homosked = FALSE,
 
   #lden <- sqrt( (((nreps - 1)*(Muts_df$rep_var[Muts_df$E_ID == 1] + Muts_df$lvar_est[Muts_df$E_ID == 1]))  + ((nreps-1)*(Muts_df$rep_var[Muts_df$E_ID == 2]  + Muts_df$lvar_est[Muts_df$E_ID == 2]) ))/(2*nreps - 2) )
 
-
-  Testmut <- Muts_df %>% dplyr::ungroup() %>% dplyr::group_by(P_ID) %>%
-    dplyr::summarise(l_num = Avg_lp[E_ID == 2] - Avg_lp[E_ID == 1],
-              #l_den = sqrt(sum(lvar_est + rep_var) ), # nreps + 1 to convert to min MSE variance estimate
-              reads = sum(ntrials))
-
-  Testmut$lden <- lden
-  Testmut$nu_o <-
-
-  Testmut <- Testmut %>% dplyr::mutate(lz = l_num/(lden*sqrt(2/nreps)),
-                                lpval = 2*stats::pt(-abs(lz), df = 2*nreps - 2 + 2*nu_o),
-                                #lpval = 2*stats::pnorm(-abs(lz)),
-                                lpadj = stats::p.adjust(lpval, method = "BH"))
-
+  # Perform differential mutation rate testing
+  Testmut <- DiffMutTest(Muts_df, lden, nreps, nu_o)
 
   Results <- list(Diffmut = Testmut,
                   Mut_est = Muts_df,
                   lm_fit = list(slopes = slope_vect,
                                 ints = int_vect),
-                  hyperps = list(sig_o2 = sig_o2,
-                                 nu_o = nu_o,
-                                 lvar_est = lvar_est,
-                                 sig_T2 = sig_T2),
+                  nu_o = nu_o,
                   Avg_df = Avg_df)
 
   return(Results)
