@@ -321,7 +321,8 @@ DiffMutTest <- function(Muts_df, lden, nreps, nu_o){
 #'
 HDProbe <- function(Muts_df, nreps, homosked = FALSE,
                     bg_pval = 1, bg_rate = 0.002,
-                    alpha_p = 2, beta_p = 102, ...){
+                    alpha_p = 2, beta_p = 102,
+                    filter_het = 1000, filter_hom = 100, ...){
 
 
   # Estimate mutation rates and estimate uncertainties
@@ -334,7 +335,7 @@ HDProbe <- function(Muts_df, nreps, homosked = FALSE,
   ## Create new P_ID
   nsf <- nrow(Filter_df)/(nreps*2)
 
-  if(nsf < 1000 & !homosked){
+  if(nsf < filter_het & !homosked){
     message("Not enough nucleotides make it past read count filter; using previously identified conservative RV trend.")
 
     lm_list <- vector("list", length = 2)
@@ -343,7 +344,7 @@ HDProbe <- function(Muts_df, nreps, homosked = FALSE,
 
     int_vect <- rep(1.4, times = 2)
 
-  }else if(nsf < 100 & homosked){
+  }else if(nsf < filter_hom & homosked){
     message("Not enough nucleotides make it past read count filter; using previously identified conservative RV trend")
 
 
