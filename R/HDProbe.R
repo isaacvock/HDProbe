@@ -105,13 +105,26 @@ FilterSites <- function(Muts_df, nreps, cutoff = 1000){
 #' @importFrom magrittr %>%
 #' @return a dataframe
 #' @export
-RepVarCalc <- function(Filter_df, nbin){
+RepVarCalc <- function(Filter_df, nbin, alpha_p = 2, beta_p = 102){
+
+  # Commenting out as I fix variance estimation
+  # Avg_df <- Filter_df %>% dplyr::group_by(E_ID, P_ID) %>%
+  #   dplyr::summarise(tot_var = stats::var(logit_phat),
+  #                    phat_var = mean(phat_var),
+  #                    ntrials = mean(ntrials),
+  #                    lphat_mu = mean(logit_phat)) %>% dplyr::ungroup() %>%
+  #   dplyr::mutate(bin_ID = as.numeric(Hmisc::cut2(ntrials, g = nbin))) %>%
+  #   dplyr::mutate(var_rep = tot_var - phat_var)
+
   Avg_df <- Filter_df %>% dplyr::group_by(E_ID, P_ID) %>%
     dplyr::summarise(tot_var = stats::var(logit_phat),
-                     phat_var = mean(phat_var),
+                     tot_trials = sum(ntrials),
                      ntrials = mean(ntrials),
                      lphat_mu = mean(logit_phat)) %>% dplyr::ungroup() %>%
-    dplyr::mutate(bin_ID = as.numeric(Hmisc::cut2(ntrials, g = nbin))) %>%
+    dplyr::mutate(bin_ID = as.numeric(Hmisc::cut2(ntrials, g = nbin)))
+
+  Avg_df <- Avg_df %>%
+    dplyr::mutate(phat_var = HDProbe::var_calc(lphat_mu*tot_trials + alpha_p, tot_trials - lphat_mu*tot_trials + beta_p)) %>%
     dplyr::mutate(var_rep = tot_var - phat_var)
 
   return(Avg_df)
