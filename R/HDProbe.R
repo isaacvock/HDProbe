@@ -335,7 +335,8 @@ DiffMutTest <- function(Muts_df, lden, nreps, nu_o){
 HDProbe <- function(Muts_df, nreps, homosked = FALSE,
                     bg_pval = 1, bg_rate = 0.002,
                     alpha_p = 2, beta_p = 102,
-                    filter_het = 1000, filter_hom = 100, ...){
+                    filter_het = 1000, filter_hom = 100,
+                    One_ctl = FALSE, ...){
 
 
   # Estimate mutation rates and estimate uncertainties
@@ -449,6 +450,15 @@ HDProbe <- function(Muts_df, nreps, homosked = FALSE,
   nu_o <- Reg_list[[2]]
   sig_Ts <- Reg_list[[3]]
   sig_o2 <- Reg_list[[4]]
+
+  if(One_ctl){
+
+    Avg_ctl <- stats::weighted.mean(Muts_df$Avg_lp[Muts_df$E_ID == 1], weights = Muts_df$ntrials[Muts_df$E_ID == 1])
+
+    Muts_df <- Muts_df %>%
+      mutate(Avg_lp = ifelse(E_ID == 1, Avg_ctl, Avg_lp))
+  }
+
 
   rm(Reg_list)
 
