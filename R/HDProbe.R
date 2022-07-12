@@ -259,7 +259,7 @@ AvgAndReg <- function(Muts_df, bg_pval, bg_rate, alpha_p, beta_p,
 
   ## Going to just use the trend as an exact replicate variability estimate for now
 
-  Muts_df <- Muts_df %>% dplyr::group_by(P_ID, E_ID) %>%
+  Muts_df <- Muts_df %>% dplyr::group_by(P_ID, E_ID, GF) %>%
     dplyr::summarise(Avg_lp = stats::weighted.mean(pracma::logit(MLE), w = ntrials), # Average logit(estimate)
                      Avg_lp_u = stats::weighted.mean(pracma::logit(MLE_u), w = ntrials),
                      Var_lp = stats::var(pracma::logit(MLE))*(nreps - 1)/nreps, # Total variance of logit(estimate)
@@ -327,6 +327,10 @@ DiffMutTest <- function(Muts_df, lden, nreps, nu_o){
 #' @param bg_rate Numeric; background mutation rate assumed
 #' @param alpha_p Numeric; shape1 of the beta prior used for mutation rate estimation
 #' @param beta_p Numeric; shape2 of the beta prior used for mutation rate estimation
+#' @param One_ctl Logical; if TRUE, then mutation rate comparisons are made to the global average control sample mutation
+#' rate
+#' @param Gene_ctl Logical; if TRUE, then mutation rate comparisons are made to the
+#' gene-wide average control sample mutation rate
 #' @parm ... Parameters that can be supplied to internal functions
 #' @importFrom magrittr %>%
 #' @return A list with three elements
@@ -336,7 +340,7 @@ HDProbe <- function(Muts_df, nreps, homosked = FALSE,
                     bg_pval = 1, bg_rate = 0.002,
                     alpha_p = 2, beta_p = 102,
                     filter_het = 1000, filter_hom = 100,
-                    One_ctl = FALSE, ...){
+                    One_ctl = FALSE, Gene_ctl = FALSE, ...){
 
 
   # Estimate mutation rates and estimate uncertainties
@@ -456,8 +460,17 @@ HDProbe <- function(Muts_df, nreps, homosked = FALSE,
     Avg_ctl <- stats::weighted.mean(Muts_df$Avg_lp[Muts_df$E_ID == 1], weights = Muts_df$ntrials[Muts_df$E_ID == 1])
 
     Muts_df <- Muts_df %>%
-      mutate(Avg_lp = ifelse(E_ID == 1, Avg_ctl, Avg_lp))
+      dplyr::mutate(Avg_lp = ifelse(E_ID == 1, Avg_ctl, Avg_lp))
+  }else if(Gene_ctl){
+
+    Gene_df <- Muts_df[Muts_df$E_ID == 1,] %>% dplyr::group_by(GF) %>%
+      dplyr::summarise(Avg_lp = stats::weighted.mean(Avg_lp, weights = ntrials))
+
+    Muts_df <- Muts_df %>% dplyr::rowwise() %>%
+      dplyr::mutate(Avg_lp = ifelse(E_ID == 1, Gene_df$Avg_lp[Gene_df$GF == GF], Avg_lp))
+
   }
+
 
 
   rm(Reg_list)
