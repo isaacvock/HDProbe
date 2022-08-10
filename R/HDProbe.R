@@ -316,8 +316,8 @@ DiffMutTest <- function(Muts_df, lden, nreps, nu_o){
   Testmut$lden <- lden
 
   Testmut <- Testmut %>% dplyr::mutate(lz = l_num/(lden*sqrt(2/nreps)),
-                                       lpval = 2*stats::pt(-abs(lz), df = 2*nreps - 2 + 2*nu_o),
-                                       #lpval = 2*stats::pnorm(-abs(lz)),
+                                       #lpval = 2*stats::pt(-abs(lz), df = 2*nreps - 2 + 2*nu_o),
+                                       lpval = 2*stats::pnorm(-abs(lz)),
                                        lpadj = stats::p.adjust(lpval, method = "BH"))
 
   return(Testmut)
