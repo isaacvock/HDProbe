@@ -281,9 +281,16 @@ AvgAndReg <- function(Muts_df, bg_pval, bg_rate, alpha_p, beta_p,
   # Prior degrees of freedom of scaled inverse chi-squared distribution (see BDA3)
   nu_o <- mean((2*(sig_o2^2)/sig_Ts) + 4)
 
+  if(is.infinite(nu_o)){
+    # Posterior total variance estimate
+    Muts_df$rep_var <- sig_o2
 
-  # Posterior total variance estimate
-  Muts_df$rep_var <- (nu_o*sig_o2 + nreps*Muts_df$Var_lp)/(nu_o + nreps - 2)
+  }else{
+    # Posterior total variance estimate
+    Muts_df$rep_var <- (nu_o*sig_o2 + nreps*Muts_df$Var_lp)/(nu_o + nreps - 2)
+
+  }
+
 
   Reg_list <- list(Muts_df, nu_o, sig_Ts, sig_o2)
 
@@ -331,7 +338,9 @@ DiffMutTest <- function(Muts_df, lden, nreps, nu_o){
 #' rate
 #' @param Gene_ctl Logical; if TRUE, then mutation rate comparisons are made to the
 #' gene-wide average control sample mutation rate
-#' @parm ... Parameters that can be supplied to internal functions
+#' @param var_of_var Variance of variance to be used to tune regularization. If NULL, this
+#' is estimated empirically (i.e., from the data)
+#' @param ... Parameters that can be supplied to internal functions
 #' @importFrom magrittr %>%
 #' @return A list with three elements
 #' @export
@@ -340,7 +349,7 @@ HDProbe <- function(Muts_df, nreps, homosked = FALSE,
                     bg_pval = 1, bg_rate = 0.002,
                     alpha_p = 2, beta_p = 102,
                     filter_het = 1000, filter_hom = 100,
-                    One_ctl = FALSE, Gene_ctl = FALSE, ...){
+                    One_ctl = FALSE, Gene_ctl = FALSE, var_of_var = NULL, ...){
 
 
   # Estimate mutation rates and estimate uncertainties
@@ -445,6 +454,9 @@ HDProbe <- function(Muts_df, nreps, homosked = FALSE,
   }
 
 
+  if(!is.null(var_of_var)){
+    sig_T2 <- rep(var_of_var, times = length(sig_T2))
+  }
 
   # Average over replicates and regularize variance
   Reg_list <- AvgAndReg(Muts_df, bg_pval, bg_rate, alpha_p, beta_p,
