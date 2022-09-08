@@ -189,7 +189,10 @@ VarianceTrend <- function(Filter_df, Homosked = FALSE){
   }
 
   lm_list <- list(slope_vect = slope_vect,
-                  int_vect = int_vect)
+                  int_vect = int_vect,
+                  Avg_RV = Filter_df$avg_var_rep,
+                  Avg_reads = Filter_df$avg_reads,
+                  E_ID = Filter_df$E_ID)
 
   return(lm_list)
 
@@ -287,7 +290,7 @@ AvgAndReg <- function(Muts_df, bg_pval, bg_rate, alpha_p, beta_p,
 
   }else{
     # Posterior total variance estimate
-    Muts_df$rep_var <- (nu_o*sig_o2 + nreps*Muts_df$Var_lp)/(nu_o + nreps - 2)
+    Muts_df$rep_var <- (nu_o*sig_o2 + nreps*Muts_df$Var_lp)/(nu_o + nreps)
 
   }
 
@@ -332,8 +335,10 @@ DiffMutTest <- function(Muts_df, lden, nreps, nu_o){
 #' @param homosked Logical; if TRUE, then the slope of the mean-variance relationship is set to 0
 #' @param bg_pval Numeric; p-value cutoff for calling a nt's mutation rate as being no greater than the background error rate
 #' @param bg_rate Numeric; background mutation rate assumed
-#' @param alpha_p Numeric; shape1 of the beta prior used for mutation rate estimation
-#' @param beta_p Numeric; shape2 of the beta prior used for mutation rate estimation
+#' @param alpha_p Numeric; shape1 of the beta prior used for mutation rate estimation. If alpha_p or beta_p are NULL, then this is
+#' estimated using beta distribution method of moments estimator
+#' @param beta_p Numeric; shape2 of the beta prior used for mutation rate estimation. If alpha_p or beta_p are NULL, then this
+#' is estimated using beta distribution method of moments estimator
 #' @param One_ctl Logical; if TRUE, then mutation rate comparisons are made to the global average control sample mutation
 #' rate
 #' @param Gene_ctl Logical; if TRUE, then mutation rate comparisons are made to the
@@ -347,9 +352,23 @@ DiffMutTest <- function(Muts_df, lden, nreps, nu_o){
 #'
 HDProbe <- function(Muts_df, nreps, homosked = FALSE,
                     bg_pval = 1, bg_rate = 0.002,
-                    alpha_p = 2, beta_p = 102,
+                    alpha_p = NULL, beta_p = NULL,
                     filter_het = 1000, filter_hom = 100,
                     One_ctl = FALSE, Gene_ctl = FALSE, var_of_var = NULL, ...){
+
+  if(is.null(alpha_p) | is.null(beta_p)){
+    # Estimate alpha_p and beta_p
+    E_df <- Muts_df %>% ungroup() %>%
+      dplyr::mutate(mutrate = (nmuts + 1)/(ntrials + 1)) %>%
+      summarise(E = mean(mutrate), V = var(mutrate))
+
+    alpha_p <- E_df$E*(((E_df$E*(1-E_df$E))/E_df$V) - 1)
+    beta_p <- (alpha_p*(1-E_df$E))/E_df$E
+
+    rm(E_df)
+  }
+
+
 
 
   # Estimate mutation rates and estimate uncertainties
@@ -502,11 +521,13 @@ HDProbe <- function(Muts_df, nreps, homosked = FALSE,
                   Mut_est = Muts_df,
                   lm_fit = list(slopes = slope_vect,
                                 ints = int_vect),
+                  Full_lm = lm_list,
                   nu_o = nu_o,
                   sig_Ts = sig_Ts,
                   sig_T2 = sig_T2,
                   sig_o2 = sig_o2,
-                  Avg_df = Avg_df)
+                  Avg_df = Avg_df,
+                  Priors = c(alpha_p = alpha_p, beta_p = beta_p))
 
   return(Results)
 

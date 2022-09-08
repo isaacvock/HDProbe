@@ -10,8 +10,14 @@ HDProbe(
   homosked = FALSE,
   bg_pval = 1,
   bg_rate = 0.002,
-  alpha_p = 2,
-  beta_p = 102
+  alpha_p = NULL,
+  beta_p = NULL,
+  filter_het = 1000,
+  filter_hom = 100,
+  One_ctl = FALSE,
+  Gene_ctl = FALSE,
+  var_of_var = NULL,
+  ...
 )
 }
 \arguments{
@@ -25,9 +31,22 @@ HDProbe(
 
 \item{bg_rate}{Numeric; background mutation rate assumed}
 
-\item{alpha_p}{Numeric; shape1 of the beta prior used for mutation rate estimation}
+\item{alpha_p}{Numeric; shape1 of the beta prior used for mutation rate estimation. If alpha_p or beta_p are NULL, then this is
+estimated using beta distribution method of moments estimator}
 
-\item{beta_p}{Numeric; shape2 of the beta prior used for mutation rate estiamtion}
+\item{beta_p}{Numeric; shape2 of the beta prior used for mutation rate estimation. If alpha_p or beta_p are NULL, then this
+is estimated using beta distribution method of moments estimator}
+
+\item{One_ctl}{Logical; if TRUE, then mutation rate comparisons are made to the global average control sample mutation
+rate}
+
+\item{Gene_ctl}{Logical; if TRUE, then mutation rate comparisons are made to the
+gene-wide average control sample mutation rate}
+
+\item{var_of_var}{Variance of variance to be used to tune regularization. If NULL, this
+is estimated empirically (i.e., from the data)}
+
+\item{...}{Parameters that can be supplied to internal functions}
 }
 \value{
 A list with three elements
