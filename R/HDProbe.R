@@ -278,11 +278,22 @@ AvgAndReg <- function(Muts_df, bg_pval, bg_rate, alpha_p, beta_p,
 
 
   # Estimate variance of variance on natural scale with delta approximation
-  sig_Ts <- (log(10)^2)*(10^(2*sig_o2))*sig_T2[Muts_df$E_ID] - (((log(10)^4)*(10^(2*sig_o2))*(sig_T2[Muts_df$E_ID]^2))/4)
+  if(any(is.infinite(sig_T2))){
+    sig_Ts <- rep(Inf, times = nrow(Muts_df))
+
+    # Prior degrees of freedom of scaled inverse chi-squared distribution (see BDA3)
+    nu_o <- 0
+
+  }else{
+    sig_Ts <- (log(10)^2)*(10^(2*sig_o2))*sig_T2[Muts_df$E_ID] - (((log(10)^4)*(10^(2*sig_o2))*(sig_T2[Muts_df$E_ID]^2))/4)
+
+    # Prior degrees of freedom of scaled inverse chi-squared distribution (see BDA3)
+    nu_o <- mean((2*(sig_o2^2)/sig_Ts) + 4)
+
+  }
 
 
-  # Prior degrees of freedom of scaled inverse chi-squared distribution (see BDA3)
-  nu_o <- mean((2*(sig_o2^2)/sig_Ts) + 4)
+
 
   if(is.infinite(nu_o)){
     # Posterior total variance estimate
@@ -290,7 +301,7 @@ AvgAndReg <- function(Muts_df, bg_pval, bg_rate, alpha_p, beta_p,
 
   }else{
     # Posterior total variance estimate
-    Muts_df$rep_var <- (nu_o*sig_o2 + nreps*Muts_df$Var_lp)/(nu_o + nreps)
+    Muts_df$rep_var <- (nu_o*sig_o2 + nreps*Muts_df$Var_lp)/(nu_o + nreps - 1)
 
   }
 
