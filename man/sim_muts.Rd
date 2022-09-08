@@ -7,6 +7,7 @@
 sim_muts(
   npos,
   nreps = 3,
+  num_conds = 2,
   het_m = -0.7,
   het_b = 1.3,
   nsig = round(npos/10),
@@ -14,8 +15,10 @@ sim_muts(
   sig_e = 0.75,
   lp_mean = -4.35,
   lp_sd = 0.8,
-  r_mean = 6.75,
-  r_sd = 1.2,
+  tot_cov = 5e+07,
+  xi = -13.85,
+  omega = 1.25,
+  alpha = 10,
   sig_T = 0.05,
   phi = 20
 )
@@ -39,9 +42,16 @@ sim_muts(
 
 \item{lp_sd}{Numeric; standard deviation of logit(mutation rates)}
 
-\item{r_mean}{Numeric; Avg. read counts drawn from lognormal(r_mean, r_sd)}
+\item{tot_cov}{Numeric; total number of reads (on average) to simulate in each replicate}
 
-\item{r_sd}{Numeric; read counts drawn from lognormal(r_mean, r_sd)}
+\item{xi}{Numeric; skew normal location parmater for simulating unnormalized logit(fraction of reads) mapping
+to a particular simulated position}
+
+\item{omega}{Numeric; skew normal scale parameter for simulating unnormalized logit(fraction of reads) mapping
+to a particular simulated position}
+
+\item{alpha}{Numeric; skew normal slant parameter for simulating unnormalized logit(fraction of reads) mapping
+to a particular simulated position}
 
 \item{sig_T}{Numeric; standard deviation of logit(p) variances on log scale}
 

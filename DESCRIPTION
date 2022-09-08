@@ -15,4 +15,5 @@ Imports:
     magrittr,
     pracma,
     RConics,
+    sn,
     stats

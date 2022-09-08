@@ -9,27 +9,43 @@
 #' @param sig_e Numeric; effect size parameter (see mu_e for details)
 #' @param lp_mean Numeric; average logit(mutation rate)
 #' @param lp_sd Numeric; standard deviation of logit(mutation rates)
-#' @param r_mean Numeric; Avg. read counts drawn from lognormal(r_mean, r_sd)
-#' @param r_sd Numeric; read counts drawn from lognormal(r_mean, r_sd)
+#' @param tot_cov Numeric; total number of reads (on average) to simulate in each replicate
+#' @param xi Numeric; skew normal location parmater for simulating unnormalized logit(fraction of reads) mapping
+#' to a particular simulated position
+#' @param omega Numeric; skew normal scale parameter for simulating unnormalized logit(fraction of reads) mapping
+#' to a particular simulated position
+#' @param alpha Numeric; skew normal slant parameter for simulating unnormalized logit(fraction of reads) mapping
+#' to a particular simulated position
 #' @param sig_T Numeric; standard deviation of logit(p) variances on log scale
 #' @param phi Numeric; read counts for each sample drawn from negative binomial distribution with size = phi
 #' @importFrom magrittr %>%
 #'
 #' @return List with 2 componenets, one of which is a dataframe that can be passed to HDProbe
 #' @export
-sim_muts <- function(npos, nreps = 3,
+sim_muts <- function(npos, nreps = 3, num_conds = 2,
                      het_m = -0.7, het_b = 1.3,
                      nsig = round(npos/10), mu_e = 0, sig_e = 0.75,
-                     lp_mean = -4.35, lp_sd = 0.8,
-                     r_mean = 6.75, r_sd = 1.2, sig_T = 0.05,
+                     lp_mean = -4.35, lp_sd = 0.8, tot_cov = 50000000,
+                     xi = -13.85, omega = 1.25, alpha = 10, sig_T = 0.05,
                      phi = 20){
 
+  if(num_conds != 2){
+    stop("sim_muts currently only supports num_conds of 2.")
+  }
+
   ### Simulate read coverage mean
-  cov_means <- stats::rlnorm(npos*2, meanlog = r_mean, sdlog = r_sd)
+
+  # Fraction of reads going to each position (unnormalized)
+  cov_fxns <- pracma::sigmoid(sn::rsn(npos, xi = xi, omega = omega, alpha = alpha))
+
+  # Make sure fractions sum to 1
+  cov_fxns <- cov_fxns/sum(cov_fxns)
+
+  cov_means <- rep(tot_cov*cov_fxns, times = num_conds)
 
   ### Simulate reads in each replicate
 
-  reads <- stats::rnbinom(npos*nreps*2, mu = rep(cov_means, each = nreps), size = phi)
+  reads <- stats::rnbinom(npos*nreps*num_conds, mu = rep(cov_means, each = nreps), size = phi)
 
 
   ### Simulate heteroskedastic mutation rates
