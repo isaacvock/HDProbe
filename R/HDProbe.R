@@ -187,6 +187,7 @@ VarianceTrend <- function(Filter_df, Homosked = FALSE){
 
       if(h_slope < 0){
         h_slope <- 0
+        h_int <- mean(Filter_df$avg_var_rep[Filter_df$E_ID == i])
       }
 
       int_vect[i] <- h_int
