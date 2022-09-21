@@ -3,7 +3,6 @@
 #'
 #' @param mu Numeric; expectation value of random variable
 #' @param var Numeric; variance of random variable
-#' @export
 inv_var <- function(mu, var){
 
   var1 <- (exp(2*mu)/((1 + exp(mu))^4))*var
@@ -18,11 +17,19 @@ inv_var <- function(mu, var){
   return(totvar)
 }
 
+#' Calculate logit without pracma
+#'
+#' @param p; Numeric between 0 and 1
+logit <- function(p){
+  return(log(p/(1-p)))
+}
+
+
+
 #' Calculate variance with delta approximation using beta distribution
 #'
 #' @param alpha Numeric; shape1 parameter of beta distribution
 #' @param beta Numeric; shape2 parameter of beta distribution
-#' @export
 var_calc <- function(alpha, beta){
 
   EX <- alpha/(alpha + beta)
@@ -70,14 +77,12 @@ freqvar <- function(nmut, n){
 EstimateRates <- function(Muts_df, alpha_p, beta_p){
 
   # Estimate rates
-  Muts_df <- Muts_df %>% dplyr::rowwise() %>%
-    dplyr::mutate(MLE = (nmuts+alpha_p)/(ntrials+beta_p),
+  Muts_df <- Muts_df %>% dplyr::mutate(MLE = (nmuts+alpha_p)/(ntrials+beta_p),
                                        MLE_u = (nmuts + 1)/(ntrials + 1))
 
   # Estimate uncertainties
-  Muts_df <- Muts_df %>% dplyr::rowwise() %>%
-    dplyr::mutate(phat_var = HDProbe::var_calc(MLE*ntrials + alpha_p, ntrials - MLE*ntrials + beta_p), logit_phat = pracma::logit(MLE),
-                                       phat_varu = HDProbe::var_calc(MLE_u*ntrials + 1, ntrials - MLE_u*ntrials + 1), logit_phat_u = pracma::logit(MLE_u))
+  Muts_df <- Muts_df %>% dplyr::mutate(phat_var = HDProbe::var_calc(MLE*ntrials + alpha_p, ntrials - MLE*ntrials + beta_p), logit_phat = HDProbe:::logit(MLE),
+                                       phat_varu = HDProbe::var_calc(MLE_u*ntrials + 1, ntrials - MLE_u*ntrials + 1), logit_phat_u = HDProbe:::logit(MLE_u))
 
 }
 
@@ -87,7 +92,6 @@ EstimateRates <- function(Muts_df, alpha_p, beta_p){
 #' @importFrom magrittr %>%
 #' @return a dataframe of same form as Muts_df but with additional info
 #' @export
-#'
 FilterSites <- function(Muts_df, nreps, cutoff = 1000){
 
   Filter_sites <- Muts_df %>% dplyr::mutate(check = ifelse(ntrials >= cutoff, 1, 0)) %>%
@@ -188,11 +192,6 @@ VarianceTrend <- function(Filter_df, Homosked = FALSE){
       h_slope <- summary(heterosked_lm)$coefficients[2,1]
       #lm_list[[i]] <- c(h_int, h_slope)
 
-      if(h_slope < 0){
-        h_slope <- 0
-        h_int <- mean(Filter_df$avg_var_rep[Filter_df$E_ID == i])
-      }
-
       int_vect[i] <- h_int
       slope_vect[i] <- h_slope
     }
@@ -272,12 +271,10 @@ AvgAndReg <- function(Muts_df, bg_pval, bg_rate, alpha_p, beta_p,
 
   ## Going to just use the trend as an exact replicate variability estimate for now
 
-  Muts_df <- Muts_df %>%
-    dplyr::mutate(lMLE = pracma::logit(MLE), lMLE_u = pracma::logit(MLE_u)) %>%
-    dplyr::group_by(P_ID, E_ID, GF) %>%
-    dplyr::summarise(Avg_lp = stats::weighted.mean(lMLE, w = ntrials), # Average logit(estimate)
-                     Avg_lp_u = stats::weighted.mean(lMLE_u, w = ntrials),
-                     Var_lp = stats::var(lMLE)*(nreps - 1)/nreps, # Total variance of logit(estimate)
+  Muts_df <- Muts_df %>% dplyr::group_by(P_ID, E_ID, GF) %>%
+    dplyr::summarise(Avg_lp = stats::weighted.mean(HDProbe:::logit(MLE), w = ntrials), # Average logit(estimate)
+                     Avg_lp_u = stats::weighted.mean(HDProbe:::logit(MLE_u), w = ntrials),
+                     Var_lp = stats::var(HDProbe:::logit(MLE))*(nreps - 1)/nreps, # Total variance of logit(estimate)
                      avg_reads = mean(ntrials),
                      ntrials = sum(ntrials),
                      nmuts = sum(nmuts))
@@ -381,9 +378,9 @@ HDProbe <- function(Muts_df, nreps, homosked = FALSE,
 
   if(is.null(alpha_p) | is.null(beta_p)){
     # Estimate alpha_p and beta_p
-    E_df <- Muts_df %>% dplyr::ungroup() %>%
+    E_df <- Muts_df %>% ungroup() %>%
       dplyr::mutate(mutrate = (nmuts + 1)/(ntrials + 1)) %>%
-      dplyr::summarise(E = mean(mutrate), V = var(mutrate))
+      summarise(E = mean(mutrate), V = var(mutrate))
 
     alpha_p <- E_df$E*(((E_df$E*(1-E_df$E))/E_df$V) - 1)
     beta_p <- (alpha_p*(1-E_df$E))/E_df$E
