@@ -3,6 +3,7 @@
 #'
 #' @param mu Numeric; expectation value of random variable
 #' @param var Numeric; variance of random variable
+#' @export
 inv_var <- function(mu, var){
 
   var1 <- (exp(2*mu)/((1 + exp(mu))^4))*var
@@ -21,6 +22,7 @@ inv_var <- function(mu, var){
 #'
 #' @param alpha Numeric; shape1 parameter of beta distribution
 #' @param beta Numeric; shape2 parameter of beta distribution
+#' @export
 var_calc <- function(alpha, beta){
 
   EX <- alpha/(alpha + beta)
