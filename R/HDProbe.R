@@ -87,6 +87,7 @@ EstimateRates <- function(Muts_df, alpha_p, beta_p){
 #' @importFrom magrittr %>%
 #' @return a dataframe of same form as Muts_df but with additional info
 #' @export
+#'
 FilterSites <- function(Muts_df, nreps, cutoff = 1000){
 
   Filter_sites <- Muts_df %>% dplyr::mutate(check = ifelse(ntrials >= cutoff, 1, 0)) %>%
@@ -271,10 +272,12 @@ AvgAndReg <- function(Muts_df, bg_pval, bg_rate, alpha_p, beta_p,
 
   ## Going to just use the trend as an exact replicate variability estimate for now
 
-  Muts_df <- Muts_df %>% dplyr::group_by(P_ID, E_ID, GF) %>%
-    dplyr::summarise(Avg_lp = stats::weighted.mean(pracma::logit(MLE), w = ntrials), # Average logit(estimate)
-                     Avg_lp_u = stats::weighted.mean(pracma::logit(MLE_u), w = ntrials),
-                     Var_lp = stats::var(pracma::logit(MLE))*(nreps - 1)/nreps, # Total variance of logit(estimate)
+  Muts_df <- Muts_df %>%
+    dplyr::mutate(lMLE = pracma::logit(MLE), lMLE_u = pracma::logit(MLE_u)) %>%
+    dplyr::group_by(P_ID, E_ID, GF) %>%
+    dplyr::summarise(Avg_lp = stats::weighted.mean(lMLE, w = ntrials), # Average logit(estimate)
+                     Avg_lp_u = stats::weighted.mean(lMLE_u, w = ntrials),
+                     Var_lp = stats::var(lMLE)*(nreps - 1)/nreps, # Total variance of logit(estimate)
                      avg_reads = mean(ntrials),
                      ntrials = sum(ntrials),
                      nmuts = sum(nmuts))
