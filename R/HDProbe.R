@@ -185,6 +185,10 @@ VarianceTrend <- function(Filter_df, Homosked = FALSE){
       h_slope <- summary(heterosked_lm)$coefficients[2,1]
       #lm_list[[i]] <- c(h_int, h_slope)
 
+      if(h_slope < 0){
+        h_slope <- 0
+      }
+
       int_vect[i] <- h_int
       slope_vect[i] <- h_slope
     }
