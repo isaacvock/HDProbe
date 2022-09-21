@@ -70,11 +70,13 @@ freqvar <- function(nmut, n){
 EstimateRates <- function(Muts_df, alpha_p, beta_p){
 
   # Estimate rates
-  Muts_df <- Muts_df %>% dplyr::mutate(MLE = (nmuts+alpha_p)/(ntrials+beta_p),
+  Muts_df <- Muts_df %>% dplyr::rowwise() %>%
+    dplyr::mutate(MLE = (nmuts+alpha_p)/(ntrials+beta_p),
                                        MLE_u = (nmuts + 1)/(ntrials + 1))
 
   # Estimate uncertainties
-  Muts_df <- Muts_df %>% dplyr::mutate(phat_var = HDProbe::var_calc(MLE*ntrials + alpha_p, ntrials - MLE*ntrials + beta_p), logit_phat = pracma::logit(MLE),
+  Muts_df <- Muts_df %>% dplyr::rowwise() %>%
+    dplyr::mutate(phat_var = HDProbe::var_calc(MLE*ntrials + alpha_p, ntrials - MLE*ntrials + beta_p), logit_phat = pracma::logit(MLE),
                                        phat_varu = HDProbe::var_calc(MLE_u*ntrials + 1, ntrials - MLE_u*ntrials + 1), logit_phat_u = pracma::logit(MLE_u))
 
 }
@@ -376,9 +378,9 @@ HDProbe <- function(Muts_df, nreps, homosked = FALSE,
 
   if(is.null(alpha_p) | is.null(beta_p)){
     # Estimate alpha_p and beta_p
-    E_df <- Muts_df %>% ungroup() %>%
+    E_df <- Muts_df %>% dplyr::ungroup() %>%
       dplyr::mutate(mutrate = (nmuts + 1)/(ntrials + 1)) %>%
-      summarise(E = mean(mutrate), V = var(mutrate))
+      dplyr::summarise(E = mean(mutrate), V = var(mutrate))
 
     alpha_p <- E_df$E*(((E_df$E*(1-E_df$E))/E_df$V) - 1)
     beta_p <- (alpha_p*(1-E_df$E))/E_df$E
