@@ -17,6 +17,7 @@ HDProbe(
   One_ctl = FALSE,
   Gene_ctl = FALSE,
   var_of_var = NULL,
+  Normalize = FALSE,
   ...
 )
 }
@@ -45,6 +46,8 @@ gene-wide average control sample mutation rate}
 
 \item{var_of_var}{Variance of variance to be used to tune regularization. If NULL, this
 is estimated empirically (i.e., from the data)}
+
+\item{Normalize}{Set the 75\% percentile of mutation rates equal across samples}
 
 \item{...}{Parameters that can be supplied to internal functions}
 }

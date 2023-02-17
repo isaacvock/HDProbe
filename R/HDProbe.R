@@ -24,7 +24,12 @@ logit <- function(p){
   return(log(p/(1-p)))
 }
 
-
+#' Calculate sigmoid without pracma
+#'
+#' @param lp; Numeric between -Inf and Inf
+inv_logit <- function(lp){
+  return(1/(1 + exp(-lp)))
+}
 
 #' Calculate variance with delta approximation using beta distribution
 #'
@@ -49,6 +54,7 @@ var_calc <- function(alpha, beta){
 #'
 #' @param nmut Numeric; number of mutations
 #' @param n Numeric; number of reads
+#' @export
 freqvar <- function(nmut, n){
 
   phat <- nmut/n
@@ -81,8 +87,8 @@ EstimateRates <- function(Muts_df, alpha_p, beta_p){
                                        MLE_u = (nmuts + 1)/(ntrials + 1))
 
   # Estimate uncertainties
-  Muts_df <- Muts_df %>% dplyr::mutate(phat_var = HDProbe::var_calc(MLE*ntrials + alpha_p, ntrials - MLE*ntrials + beta_p), logit_phat = HDProbe:::logit(MLE),
-                                       phat_varu = HDProbe::var_calc(MLE_u*ntrials + 1, ntrials - MLE_u*ntrials + 1), logit_phat_u = HDProbe:::logit(MLE_u))
+  Muts_df <- Muts_df %>% dplyr::mutate(phat_var = var_calc(MLE*ntrials + alpha_p, ntrials - MLE*ntrials + beta_p), logit_phat = HDProbe:::logit(MLE),
+                                       phat_varu = var_calc(MLE_u*ntrials + 1, ntrials - MLE_u*ntrials + 1), logit_phat_u = HDProbe:::logit(MLE_u))
 
 }
 
@@ -133,7 +139,7 @@ RepVarCalc <- function(Filter_df, nbin, alpha_p = 2, beta_p = 102){
     dplyr::mutate(bin_ID = as.numeric(Hmisc::cut2(ntrials, g = nbin)))
 
   Avg_df <- Avg_df %>%
-    dplyr::mutate(phat_var = HDProbe::var_calc(lphat_mu*tot_trials + alpha_p, tot_trials - lphat_mu*tot_trials + beta_p)) %>%
+    dplyr::mutate(phat_var = var_calc(lphat_mu*tot_trials + alpha_p, tot_trials - lphat_mu*tot_trials + beta_p)) %>%
     dplyr::mutate(var_rep = tot_var - phat_var)
 
   return(Avg_df)
@@ -151,7 +157,8 @@ VarianceTrend <- function(Filter_df, Homosked = FALSE){
   if(Homosked){
     Filter_df <- Filter_df %>% dplyr::group_by(E_ID) %>%
       dplyr::summarise(avg_var_rep = mean(var_rep),
-                RV_var = stats::var(var_rep)) %>%
+                RV_var = stats::var(var_rep),
+                avg_reads = log10(mean(ntrials))) %>%
       dplyr::mutate(avg_var_rep = log10(avg_var_rep))
 
 
@@ -191,6 +198,11 @@ VarianceTrend <- function(Filter_df, Homosked = FALSE){
       h_int <- summary(heterosked_lm)$coefficients[1,1]
       h_slope <- summary(heterosked_lm)$coefficients[2,1]
       #lm_list[[i]] <- c(h_int, h_slope)
+
+      if(h_slope > 0){
+        h_slope <- 0
+      }
+
 
       int_vect[i] <- h_int
       slope_vect[i] <- h_slope
@@ -280,7 +292,7 @@ AvgAndReg <- function(Muts_df, bg_pval, bg_rate, alpha_p, beta_p,
                      nmuts = sum(nmuts))
 
   # Estimate variance using Bayesian posterior
-  lvar_est <- HDProbe::var_calc(Muts_df$nmuts + alpha_p, Muts_df$ntrials - Muts_df$nmuts + beta_p)
+  lvar_est <- var_calc(Muts_df$nmuts + alpha_p, Muts_df$ntrials - Muts_df$nmuts + beta_p)
 
   # Total variance trend
   sig_o2 <- (10^(slope_vect[Muts_df$E_ID]*log10(Muts_df$avg_reads) + int_vect[Muts_df$E_ID] )) + lvar_est
@@ -365,6 +377,7 @@ DiffMutTest <- function(Muts_df, lden, nreps, nu_o){
 #' gene-wide average control sample mutation rate
 #' @param var_of_var Variance of variance to be used to tune regularization. If NULL, this
 #' is estimated empirically (i.e., from the data)
+#' @param Normalize Set the 75% percentile of mutation rates equal across samples
 #' @param ... Parameters that can be supplied to internal functions
 #' @importFrom magrittr %>%
 #' @return A list with three elements
@@ -374,7 +387,8 @@ HDProbe <- function(Muts_df, nreps, homosked = FALSE,
                     bg_pval = 1, bg_rate = 0.002,
                     alpha_p = NULL, beta_p = NULL,
                     filter_het = 1000, filter_hom = 100,
-                    One_ctl = FALSE, Gene_ctl = FALSE, var_of_var = NULL, ...){
+                    One_ctl = FALSE, Gene_ctl = FALSE, var_of_var = NULL,
+                    Normalize = FALSE, ...){
 
   if(is.null(alpha_p) | is.null(beta_p)){
     # Estimate alpha_p and beta_p
@@ -406,16 +420,52 @@ HDProbe <- function(Muts_df, nreps, homosked = FALSE,
 
     lm_list <- vector("list", length = 2)
 
-    slope_vect <- rep(-0.6, times = 2)
+    slope_vect <- rep(-0.36, times = 2)
 
-    int_vect <- rep(1.4, times = 2)
+    int_vect <- rep(0.4, times = 2)
+
+    Filter_df$P_ID <- rep(1:nsf, each = nreps*2)
+
+
+    # Number of bins for replicate variability trend fitting
+    nbin <- max(c(round((nsf)/1000), 10))
+
+    Avg_df <- Filter_df %>%
+      dplyr::mutate(var_rep = ifelse(var_rep < 0, min_vr, var_rep))
+
+
+    Avg_df <- Avg_df %>% dplyr::ungroup() %>% dplyr::rowwise() %>%
+      dplyr::mutate(var_exp = slope_vect[E_ID]*log10(ntrials) + int_vect[E_ID],
+                    var_sdiff = log10(var_rep) - var_exp )
+
+    sig_T2 <- rep(0.0025, times = 2)
+
+
 
   }else if(nsf < filter_hom & homosked){
     message("Not enough nucleotides make it past read count filter; using previously identified conservative RV trend")
 
 
-    int_vect <- rep(log10(0.2), times = 2)
+    int_vect <- rep(-1, times = 2)
     slope_vect <- rep(0, times = 2)
+
+
+    Filter_df$P_ID <- rep(1:nsf, each = nreps*2)
+
+
+    # Number of bins for replicate variability trend fitting
+    nbin <- max(c(round((nsf)/1000), 10))
+
+    Avg_df <- Filter_df %>%
+      dplyr::mutate(var_rep = ifelse(var_rep < 0, min_vr, var_rep))
+
+
+    Avg_df <- Avg_df %>% dplyr::ungroup() %>% dplyr::rowwise() %>%
+      dplyr::mutate(var_exp = slope_vect[E_ID]*log10(ntrials) + int_vect[E_ID],
+                    var_sdiff = log10(var_rep) - var_exp )
+
+    sig_T2 <- rep(0.0025, times = 2)
+
 
 
   }else if(homosked){
@@ -452,6 +502,11 @@ HDProbe <- function(Muts_df, nreps, homosked = FALSE,
     Avg_df <- Var_list[[1]]
     sig_T2 <- Var_list[[2]]
 
+
+    # Make sure sig_T2 is within reasonable range
+    sig_T2 <- pmin(sig_T2, 0.01)
+    sig_T2 <- pmax(sig_T2, 0.0001)
+
     rm(Var_list)
 
   }else{
@@ -487,6 +542,10 @@ HDProbe <- function(Muts_df, nreps, homosked = FALSE,
 
     Avg_df <- Var_list[[1]]
     sig_T2 <- Var_list[[2]]
+
+    # Make sure sig_T2 is within reasonable range
+    sig_T2 <- pmin(sig_T2, 0.01)
+    sig_T2 <- pmax(sig_T2, 0.0001)
 
     rm(Var_list)
 
@@ -526,13 +585,27 @@ HDProbe <- function(Muts_df, nreps, homosked = FALSE,
 
   rm(Reg_list)
 
-
   # Denominator of test statistic
   lden <- sqrt( (((nreps - 1)*(Muts_df$rep_var[Muts_df$E_ID == 1]))  + ((nreps-1)*(Muts_df$rep_var[Muts_df$E_ID == 2])))/(2*nreps - 2) )
 
 
 
   #lden <- sqrt( (((nreps - 1)*(Muts_df$rep_var[Muts_df$E_ID == 1] + Muts_df$lvar_est[Muts_df$E_ID == 1]))  + ((nreps-1)*(Muts_df$rep_var[Muts_df$E_ID == 2]  + Muts_df$lvar_est[Muts_df$E_ID == 2]) ))/(2*nreps - 2) )
+
+  # Normalize wrt to 75th percentile (sf)
+    # Really only makes sense if all regularized mutation rates < 50% (logit < 0)
+  if(Normalize){
+    norm_df <- Muts_df %>%
+      dplyr::group_by(E_ID) %>%
+      dplyr::summarise(sf = as.numeric(quantile(Avg_lp)[4]),
+                       low = as.numeric(quantile(Avg_lp)[1])) %>%
+      dplyr::mutate(norm = sf[E_ID == 1] - sf)
+
+    Muts_df <- dplyr::left_join(Muts_df, norm_df, by = "E_ID") %>%
+      dplyr::mutate(Avg_lp = ifelse(E_ID > 1, ifelse(Avg_lp >= sf, Avg_lp + norm,
+                                    ifelse(Avg_lp <= low, Avg_lp,
+                                           Avg_lp + norm*((Avg_lp/sf)/(0.01 + Avg_lp/sf) ))), Avg_lp))
+  }
 
   # Perform differential mutation rate testing
   Testmut <- DiffMutTest(Muts_df, lden, nreps, nu_o)
