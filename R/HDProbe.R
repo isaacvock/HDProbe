@@ -424,19 +424,8 @@ HDProbe <- function(Muts_df, nreps, homosked = FALSE,
 
     int_vect <- rep(0.4, times = 2)
 
-    Filter_df$P_ID <- rep(1:nsf, each = nreps*2)
+    Avg_df <- data.frame(message = c("Not enough sites made it past filtering."))
 
-
-    # Number of bins for replicate variability trend fitting
-    nbin <- max(c(round((nsf)/1000), 10))
-
-    Avg_df <- Filter_df %>%
-      dplyr::mutate(var_rep = ifelse(var_rep < 0, min_vr, var_rep))
-
-
-    Avg_df <- Avg_df %>% dplyr::ungroup() %>% dplyr::rowwise() %>%
-      dplyr::mutate(var_exp = slope_vect[E_ID]*log10(ntrials) + int_vect[E_ID],
-                    var_sdiff = log10(var_rep) - var_exp )
 
     sig_T2 <- rep(0.0025, times = 2)
 
@@ -450,19 +439,7 @@ HDProbe <- function(Muts_df, nreps, homosked = FALSE,
     slope_vect <- rep(0, times = 2)
 
 
-    Filter_df$P_ID <- rep(1:nsf, each = nreps*2)
-
-
-    # Number of bins for replicate variability trend fitting
-    nbin <- max(c(round((nsf)/1000), 10))
-
-    Avg_df <- Filter_df %>%
-      dplyr::mutate(var_rep = ifelse(var_rep < 0, min_vr, var_rep))
-
-
-    Avg_df <- Avg_df %>% dplyr::ungroup() %>% dplyr::rowwise() %>%
-      dplyr::mutate(var_exp = slope_vect[E_ID]*log10(ntrials) + int_vect[E_ID],
-                    var_sdiff = log10(var_rep) - var_exp )
+    Avg_df <- data.frame(message = c("Not enough sites made it past filtering."))
 
     sig_T2 <- rep(0.0025, times = 2)
 
