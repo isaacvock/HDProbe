@@ -377,6 +377,12 @@ DiffMutTest <- function(Muts_df, lden, nreps, nu_o){
 #' gene-wide average control sample mutation rate
 #' @param var_of_var Variance of variance to be used to tune regularization. If NULL, this
 #' is estimated empirically (i.e., from the data)
+#' @param prior_int_hom If homosked is TRUE, RV trend intercept to use if not enough sites make it past read count
+#' filtering for determining trend.
+#' @param prior_int_het If homosked is FALSE, RV trend intercept to use if not enough sites
+#' make it past filtering for determining trend.
+#' @param prior_slope If homosked is FALSE, RV trend slope to use if not enough sites
+#' make it past filtering for determining trend.
 #' @param Normalize Set the 75% percentile of mutation rates equal across samples
 #' @param ... Parameters that can be supplied to internal functions
 #' @importFrom magrittr %>%
@@ -388,6 +394,7 @@ HDProbe <- function(Muts_df, nreps, homosked = FALSE,
                     alpha_p = NULL, beta_p = NULL,
                     filter_het = 1000, filter_hom = 100,
                     One_ctl = FALSE, Gene_ctl = FALSE, var_of_var = NULL,
+                    prior_slope = -0.4, prior_int_hom = -1, prior_int_het = 0.4,
                     Normalize = FALSE, ...){
 
   if(is.null(alpha_p) | is.null(beta_p)){
@@ -420,28 +427,32 @@ HDProbe <- function(Muts_df, nreps, homosked = FALSE,
 
     lm_list <- vector("list", length = 2)
 
-    slope_vect <- rep(-0.36, times = 2)
+    slope_vect <- rep(prior_slope, times = 2)
 
-    int_vect <- rep(0.4, times = 2)
+    int_vect <- rep(prior_int_het, times = 2)
 
     Avg_df <- data.frame(message = c("Not enough sites made it past filtering."))
 
 
     sig_T2 <- rep(0.0025, times = 2)
 
-
+    lm_list <- list(slope_vect = slope_vect,
+                    int_vect = int_vect)
 
   }else if(nsf < filter_hom & homosked){
     message("Not enough nucleotides make it past read count filter; using previously identified conservative RV trend")
 
 
-    int_vect <- rep(-1, times = 2)
+    int_vect <- rep(prior_int_hom, times = 2)
     slope_vect <- rep(0, times = 2)
 
 
     Avg_df <- data.frame(message = c("Not enough sites made it past filtering."))
 
     sig_T2 <- rep(0.0025, times = 2)
+
+    lm_list <- list(slope_vect = slope_vect,
+                    int_vect = int_vect)
 
 
 

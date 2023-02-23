@@ -17,6 +17,9 @@ HDProbe(
   One_ctl = FALSE,
   Gene_ctl = FALSE,
   var_of_var = NULL,
+  prior_slope = -0.4,
+  prior_int_hom = -1,
+  prior_int_het = 0.4,
   Normalize = FALSE,
   ...
 )
@@ -46,6 +49,15 @@ gene-wide average control sample mutation rate}
 
 \item{var_of_var}{Variance of variance to be used to tune regularization. If NULL, this
 is estimated empirically (i.e., from the data)}
+
+\item{prior_slope}{If homosked is FALSE, RV trend slope to use if not enough sites
+make it past filtering for determining trend.}
+
+\item{prior_int_hom}{If homosked is TRUE, RV trend intercept to use if not enough sites make it past read count
+filtering for determining trend.}
+
+\item{prior_int_het}{If homosked is FALSE, RV trend intercept to use if not enough sites
+make it past filtering for determining trend.}
 
 \item{Normalize}{Set the 75\% percentile of mutation rates equal across samples}
 
