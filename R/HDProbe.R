@@ -373,6 +373,10 @@ DiffMutTest <- function(Muts_df, lden, nreps, nu_o){
 #' is estimated using beta distribution method of moments estimator
 #' @param One_ctl Logical; if TRUE, then mutation rate comparisons are made to the global average control sample mutation
 #' rate
+#' @param filter_het Numeric; number of sites that need to make it past variance trend estimation read count
+#' filtering when using heteroskedastic variance model (homosked = FALSE).
+#' @param filter_hom Numeric; number of sites that need to make it past variance trend estimation read count
+#' filtering when using homoskedastic variance model (homosked = TRUE).
 #' @param Gene_ctl Logical; if TRUE, then mutation rate comparisons are made to the
 #' gene-wide average control sample mutation rate
 #' @param var_of_var Variance of variance to be used to tune regularization. If NULL, this

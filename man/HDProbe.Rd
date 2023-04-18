@@ -41,6 +41,12 @@ estimated using beta distribution method of moments estimator}
 \item{beta_p}{Numeric; shape2 of the beta prior used for mutation rate estimation. If alpha_p or beta_p are NULL, then this
 is estimated using beta distribution method of moments estimator}
 
+\item{filter_het}{Numeric; number of sites that need to make it past variance trend estimation read count
+filtering when using heteroskedastic variance model (homosked = FALSE).}
+
+\item{filter_hom}{Numeric; number of sites that need to make it past variance trend estimation read count
+filtering when using homoskedastic variance model (homosked = TRUE).}
+
 \item{One_ctl}{Logical; if TRUE, then mutation rate comparisons are made to the global average control sample mutation
 rate}
 
