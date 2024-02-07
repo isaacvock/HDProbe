@@ -83,8 +83,8 @@ freqvar <- function(nmut, n){
 EstimateRates <- function(Muts_df, alpha_p, beta_p){
 
   # Estimate rates
-  Muts_df <- Muts_df %>% dplyr::mutate(MLE = (nmuts+alpha_p)/(ntrials+beta_p),
-                                       MLE_u = (nmuts + 1)/(ntrials + 1))
+  Muts_df <- Muts_df %>% dplyr::mutate(MLE = (nmuts+alpha_p)/(ntrials+beta_p+alpha_p),
+                                       MLE_u = (nmuts + 1)/(ntrials + 2))
 
   # Estimate uncertainties
   Muts_df <- Muts_df %>% dplyr::mutate(phat_var = var_calc(MLE*ntrials + alpha_p, ntrials - MLE*ntrials + beta_p), logit_phat = HDProbe:::logit(MLE),
@@ -277,6 +277,8 @@ TrendVariance <- function(Avg_df, estimate_var,
 AvgAndReg <- function(Muts_df, bg_pval, bg_rate, alpha_p, beta_p,
                      slope_vect, int_vect, nreps, sig_T2){
 
+
+
   Muts_df <- Muts_df %>%
     dplyr::mutate(MLE = ifelse(stats::pbinom(nmuts, ntrials, prob = bg_rate, lower.tail = FALSE) < bg_pval, MLE, bg_rate))
 
@@ -401,10 +403,11 @@ HDProbe <- function(Muts_df, nreps, homosked = FALSE,
                     prior_slope = -0.4, prior_int_hom = -1, prior_int_het = 0.4,
                     Normalize = FALSE, ...){
 
+
   if(is.null(alpha_p) | is.null(beta_p)){
     # Estimate alpha_p and beta_p
     E_df <- Muts_df %>% ungroup() %>%
-      dplyr::mutate(mutrate = (nmuts + 1)/(ntrials + 1)) %>%
+      dplyr::mutate(mutrate = (nmuts + 1)/(ntrials + 2)) %>%
       summarise(E = mean(mutrate), V = var(mutrate))
 
     alpha_p <- E_df$E*(((E_df$E*(1-E_df$E))/E_df$V) - 1)
@@ -548,6 +551,7 @@ HDProbe <- function(Muts_df, nreps, homosked = FALSE,
     sig_T2 <- rep(var_of_var, times = length(sig_T2))
   }
 
+
   # Average over replicates and regularize variance
   Reg_list <- AvgAndReg(Muts_df, bg_pval, bg_rate, alpha_p, beta_p,
                        slope_vect, int_vect, nreps, sig_T2)
@@ -576,6 +580,8 @@ HDProbe <- function(Muts_df, nreps, homosked = FALSE,
 
 
   rm(Reg_list)
+
+
 
   # Denominator of test statistic
   lden <- sqrt( (((nreps - 1)*(Muts_df$rep_var[Muts_df$E_ID == 1]))  + ((nreps-1)*(Muts_df$rep_var[Muts_df$E_ID == 2])))/(2*nreps - 2) )
